@@ -81,8 +81,7 @@ def trainGcn(
     key_added: str = "X_spagcn",
 ):
     # Run SpaGCN for each batch
-    # Save gcn embeddings in the list
-    spagcn_embed = []
+    adata.obsm[key_added] = np.zeros(adata.obsm[use_rep].shape)
     batches = adata.obs["batch"].unique()
     for batch in batches:
         print(f"Train GCN on batch {batch}")
@@ -117,12 +116,10 @@ def trainGcn(
         )
         # ----------End training----------
         with torch.no_grad():
-            spagcn_embed.append(
-                clf.model.gc(
-                    torch.FloatTensor(clf.embed), torch.FloatTensor(clf.adj_exp)
-                ).numpy()
-            )
-    adata.obsm[key_added] = np.concatenate(spagcn_embed)
+            spagcn_embed = clf.model.gc(
+                torch.FloatTensor(clf.embed), torch.FloatTensor(clf.adj_exp)
+            ).numpy()
+        adata.obsm[key_added][adata.obs["batch"] == batch,] = spagcn_embed.copy()
     return adata
 
 
@@ -178,7 +175,9 @@ def main():
     data_name = args.data_name
     nclust = args.nclust
     output_dir = args.output
+    os.makedirs(output_dir, exist_ok=True)
     checkpoint_dir = Path(output_dir, "checkpoint")
+    os.makedirs(checkpoint_dir, exist_ok=True)
     tolerance = args.tolerance
     seed = args.seed
 
@@ -247,8 +246,6 @@ def main():
 
     # Save data
     print(f"Save results to {output_dir}")
-    os.makedirs(output_dir, exist_ok=True)
-    os.makedirs(checkpoint_dir, exist_ok=True)
     adata.write_h5ad(Path(checkpoint_dir, "stads_cluster.h5ad"))
     result_df = adata.obs[["batch", "cluster_stads"]]
     result_df.columns = ["batch", "cluster"]
