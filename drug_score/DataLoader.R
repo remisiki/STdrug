@@ -208,7 +208,22 @@ loadSampleData <- function(
       }
     }
   } else if (data_modality == "scRNA") {
-    if (data_name == "pancreas") {
+    if (data_name == "prostate") {
+      message("Load prostate cell atlas dataset")
+      data_dir <- "/nfs/dcmb-lgarmire/yangiwen/workspace/stads/data/prostate/prostatecellatlas"
+      data <- readRDS(file.path(data_dir, "prostate_ref.rds"))
+      data <- renameSeuratAssay(data, to_assay = "RNA")
+      patients <- unique(data$patient)
+      data$batch <- data$sample
+      data$condition <- ifelse(data$group == "normal", "N", "T")
+      for (patient in patients) {
+        data_patient <- subsetSeurat(data, "patient", patient)
+        data_list[[patient]] <- list(
+          normal = subsetSeurat(data_patient, "condition", "N"),
+          tumor = subsetSeurat(data_patient, "condition", "T")
+        )
+      }
+    } else if (data_name == "pancreas") {
       message("Load pancreas dataset")
       data_dir <- "/nfs/dcmb-lgarmire/yangiwen/workspace/stads/data/pancreas/GSE212966"
       patients <- c("patient1", "patient2", "patient6")
@@ -219,6 +234,18 @@ loadSampleData <- function(
         tumor_samples <- readRDS(file.path(data_dir, paste0(patient, "t_ann.rds")))
         tumor_samples$condition <- "T"
         data_list[[patient]] <- list(normal = normal_samples, tumor = tumor_samples)
+      }
+    } else if (data_name == "hcc") {
+      message("Load single cell HCC dataset")
+      data_dir <- "/nfs/dcmb-lgarmire/yangiwen/workspace/stads/data/hcc/GSE149614"
+      data <- readRDS(file.path(data_dir, "data.rds"))
+      patients <- unique(data$patient)
+      for (patient in patients) {
+        data_patient <- subsetSeurat(data, "patient", patient)
+        data_list[[patient]] <- list(
+          normal = subsetSeurat(data_patient, "condition", "N"),
+          tumor = subsetSeurat(data_patient, "condition", "T")
+        )
       }
     }
   }
