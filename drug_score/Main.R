@@ -5,6 +5,7 @@ source("/nfs/dcmb-lgarmire/yangiwen/workspace/stads/stable/drug_score/L1000Loade
 spec <- matrix(
   c(
     "data-name", "n", 1, "character",
+    "patients", "p", 1, "character",
     "tissue", "t", 1, "character",
     "output", "o", 1, "character",
     "lincs-phase1-path", "l1", 1, "character",
@@ -13,7 +14,10 @@ spec <- matrix(
     "checkpoint-path", "cp", 1, "character",
     "drug-annotation-path", "dp", 1, "character",
     "gdsc-path", "gp", 1, "character",
-    "sider-path", "sp", 1, "character"
+    "sider-path", "sp", 1, "character",
+    "drop-celltype", "d", 1, "character",
+    "deconv-result-path", "dvp", 1, "character",
+    "sc-ref-path", "scp", 1, "character"
   ),
   byrow = T,
   ncol = 4
@@ -22,6 +26,10 @@ spec <- matrix(
 opt <- getopt::getopt(spec)
 
 data_name <- opt[["data-name"]]
+patients <- opt[["patients"]]
+if (!is.null(patients)) {
+  patients <- unlist(lsplit(patients, "\\|"))
+}
 tissue <- opt[["tissue"]]
 output_dir <- opt[["output"]]
 lincs_drug_response_phase1_path <- opt[["lincs-phase1-path"]]
@@ -31,6 +39,12 @@ checkpoint_path <- opt[["checkpoint-path"]]
 drug_annotation_path <- opt[["drug-annotation-path"]]
 gdsc_path <- opt[["gdsc-path"]]
 sider_path <- opt[["sider-path"]]
+drop_celltype <- opt[["drop-celltype"]]
+if (!is.null(drop_celltype)) {
+  drop_celltype <- unlist(lsplit(drop_celltype, "\\|"))
+}
+deconv_result_path <- opt[["deconv-result-path"]]
+sc_ref_path <- opt[["sc-ref-path"]]
 
 library(Seurat)
 set.seed(0)
@@ -41,7 +55,14 @@ if (!is.null(checkpoint_path)) {
 }
 
 # Load data
-data_factory <- loadSampleData(cluster_output_path = cluster_output_path, data_name = data_name)
+data_factory <- loadSampleData(
+  cluster_output_path = cluster_output_path,
+  data_name = data_name,
+  drop_celltype = drop_celltype,
+  deconv_result_path = deconv_result_path,
+  sc_ref_path = sc_ref_path,
+  patients = patients
+)
 patients <- data_factory$patients
 data_list <- data_factory$data
 domains <- data_factory$domains
@@ -58,7 +79,6 @@ if (!is.null(checkpoint_path)) {
   saveRDS(data_list_copy, cluster_rds_file)
 }
 
-
 # Load L1000, gpt-4o drug annotations, GDSC, Sider
 l1000 <- loadLincsTwoPhasesDrugResponse(lincs_drug_response_phase1_path, lincs_drug_response_phase2_path, tissue)
 drug_annotation <- read.csv(drug_annotation_path, row.names = 1)
@@ -71,12 +91,12 @@ for (patient in patients) {
   # Create normal and tumor samples
   tumor_samples <- data_list[[patient]]$tumor
   normal_samples <- data_list[[patient]]$normal
-  cci_ratio <- NULL
   drug_scores <-
     calcDrugScore(
       tissue,
       tumor_samples,
       normal_samples,
+      patient,
       domains,
       l1000,
       drug_annotation,

@@ -216,6 +216,7 @@ calcDrugScore <- function(
   tissue,
   tumor_samples,
   normal_samples,
+  patient,
   domains,
   l1000,
   drug_annotation,
@@ -228,8 +229,8 @@ calcDrugScore <- function(
   domain_props <- prop.table(table(tumor_samples@meta.data[[domain_key]]))
   
   # Calculate CCI score
-  cci_ratio_tumor <- calcCciRatio(tumor_samples)
-  cci_ratio_normal <- calcCciRatio(normal_samples)
+  cci_ratio_tumor <- calcCciRatio(tumor_samples, domain_key = domain_key)
+  cci_ratio_normal <- calcCciRatio(normal_samples, domain_key = domain_key)
   cci_score <- exp(as.matrix(cci_ratio_tumor - cci_ratio_normal))
   cci_score <- rowSums(cci_score) - diag(cci_score)
   if (!is.null(checkpoint_path)) {

@@ -22,7 +22,7 @@ saveHccData <- function() {
 }
 
 saveProstateData <- function() {
-  data_dir <- file.path("/nfs/dcmb-lgarmire/yangiwen/workspace/stads/data/prostate")
+  data_dir <- file.path("/nfs/dcmb-lgarmire/yangiwen/workspace/stads/data/prostate/erickson")
   output_dir <- data_dir
   
   batch_map <- list(
@@ -87,11 +87,67 @@ saveNsclcData <- function() {
   }
 }
 
+removeCelltype <- function(
+  data,
+  ref,
+  cell_abundance,
+  drop_celltype,
+  use_celltype = "celltype"
+) {
+  # Make a copy of original data to prevent direct writing
+  data_cp <- data
+  ref_cp <- ref
+  # Subset data and ref by common genes
+  common_genes <- intersect(rownames(ref_cp), rownames(data_cp))
+  data_cp <- data_cp[common_genes, ]
+  ref_cp <- ref_cp[common_genes, ]
+  # Normalize target data and ref
+  counts <- cbind(Seurat::GetAssayData(data_cp, slot = "counts"), Seurat::GetAssayData(ref_cp, slot = "counts"))
+  normalized_data <- Seurat::NormalizeData(counts)
+  data_cp <- Seurat::SetAssayData(data_cp, "data", normalized_data[, 1:ncol(data_cp)])
+  ref_cp <- Seurat::SetAssayData(ref_cp, "data", normalized_data[, (ncol(data_cp) + 1):ncol(normalized_data)])
+  # Calculate mean expression of cell types to drop in ref
+  ref_celltype_mean <- rowMeans(Seurat::GetAssayData(
+    subsetSeurat(ref_cp, use_celltype, drop_celltype, operator = "in")
+  ))
+  # Subset cell abundance by all cell types in ref
+  celltypes <- unique(ref_cp@meta.data[[use_celltype]])
+  cell_abundance <- cell_abundance[, celltypes]
+  # Convert cell abundance to proportion
+  cell_abundance <- t(apply(cell_abundance, 1, function(x)
+    x / sum(x)))
+  # Sum cell type proportions to drop
+  cell_abundance <- cell_abundance[, drop_celltype, drop = F]
+  cell_abundance <- rowSums(cell_abundance)
+  # Calculate the amount of expression to subtract from target data using mean
+  # expression in ref multiplied by cell type proportion
+  pseudo_bulk <- outer(ref_celltype_mean, cell_abundance)
+  # Correct the assay, only modify non zero entries
+  assay <- Seurat::GetAssayData(data_cp)
+  non_zero_indices <- Matrix::which(assay != 0, arr.ind = T)
+  pseudo_bulk <- Matrix::sparseMatrix(
+    i = non_zero_indices[, 1],
+    j = non_zero_indices[, 2],
+    x = pseudo_bulk[non_zero_indices],
+    dims = c(nrow(pseudo_bulk), ncol(pseudo_bulk))
+  )
+  corrected_assay <- assay - pseudo_bulk
+  # If corrected expression is negative, adjust to zero
+  corrected_assay[corrected_assay < 0] <- 0
+  # Assign the corrected assay to data
+  data_cp <- Seurat::SetAssayData(object = data_cp, new.data = corrected_assay)
+  data_cp
+}
+
 loadSampleData <- function(
   data_modality = "spatial",
+  patients = NULL,
   cluster_output_path = NULL,
   domain_key = "stads_domain",
-  data_name = "hcc"
+  data_name = "hcc",
+  drop_celltype = NULL,
+  deconv_result_path = NULL,
+  sc_ref_path = NULL
 ) {
   data_list <- list()
   partition <- NULL
@@ -107,17 +163,36 @@ loadSampleData <- function(
         stop(paste0("Invalid STADS clustering result file ", partition_file))
       }
     }
+    if (!is.null(sc_ref_path)) {
+      sc_ref <- readRDS(sc_ref_path)
+    }
     if (data_name == "hcc") {
       message("Load HCC dataset")
       data_dir <- "/nfs/dcmb-lgarmire/shared/public/PMC8683021"
       patients <- c("HCC01", "HCC02", "HCC03", "HCC04")
       for (patient in patients) {
         message(patient)
-        normal_samples <- readRDS(file.path(data_dir, paste0(patient, "N.rds")))
-        tumor_samples <- readRDS(file.path(data_dir, paste0(patient, "T.rds")))
-        if (!is.null(partition)) {
-          normal_samples[[domain_key]] <- partition[partition$batch == paste0(patient, "N"), ]$cluster
-          tumor_samples[[domain_key]] <- partition[partition$batch == paste0(patient, "T"), ]$cluster
+        normal_samples <- NULL
+        tumor_samples <- NULL
+        for (condition in c("N", "T")) {
+          batch <- paste0(patient, condition)
+          data_batch <- readRDS(file.path(data_dir, paste0(patient, condition, ".rds")))
+          if (!is.null(drop_celltype)) {
+            cell_abundance <- read.csv(
+              file.path(deconv_result_path, batch, "cell_abundance.csv"),
+              row.names = 1,
+              check.names = F
+            )
+            data_batch <- removeCelltype(data_batch, sc_ref, cell_abundance, drop_celltype)
+          }
+          if (!is.null(partition)) {
+            data_batch@meta.data[[domain_key]] <- partition[partition$batch == batch, "cluster"]
+          }
+          if (condition == "N") {
+            normal_samples <- data_batch
+          } else if (condition == "T") {
+            tumor_samples <- data_batch
+          }
         }
         data_list[[patient]] <- list(normal = normal_samples, tumor = tumor_samples)
       }
@@ -128,14 +203,32 @@ loadSampleData <- function(
       for (patient in patients) {
         message(patient)
         data <- readRDS(file.path(data_dir, paste0(patient, ".rds")))
-        normal_samples <- subsetSeurat(data, "condition", "N")
-        tumor_samples <- subsetSeurat(data, "condition", "T")
-        if (!is.null(partition)) {
-          batches <- unique(normal_samples$batch)
-          normal_samples[[domain_key]] <- partition[partition$batch %in% batches, ]$cluster
-          batches <- unique(tumor_samples$batch)
-          tumor_samples[[domain_key]] <- partition[partition$batch %in% batches, ]$cluster
+        normal_batches <- unique(data@meta.data[data$condition == "N", "batch"])
+        tumor_batches <- unique(data@meta.data[data$condition == "T", "batch"])
+        normal_samples <- list()
+        tumor_samples <- list()
+        batches <- c(normal_batches, tumor_batches)
+        for (batch in batches) {
+          data_batch <- subsetSeurat(data, "batch", batch)
+          if (!is.null(drop_celltype)) {
+            cell_abundance <- read.csv(
+              file.path(deconv_result_path, batch, "cell_abundance.csv"),
+              row.names = 1,
+              check.names = F
+            )
+            data_batch <- removeCelltype(data_batch, sc_ref, cell_abundance, drop_celltype)
+          }
+          if (!is.null(partition)) {
+            data_batch@meta.data[[domain_key]] <- partition[partition$batch == batch, "cluster"]
+          }
+          if (batch %in% normal_batches) {
+            normal_samples[[batch]] <- data_batch
+          } else {
+            tumor_samples[[batch]] <- data_batch
+          }
         }
+        normal_samples <- mergeSeuratList(normal_samples)
+        tumor_samples <- mergeSeuratList(tumor_samples)
         data_list[[patient]] <- list(normal = normal_samples, tumor = tumor_samples)
       }
     } else if (data_name == "prostate_hirz") {
