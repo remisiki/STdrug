@@ -86,7 +86,13 @@ calcCciRatio <- function(
   meta[] <- lapply(meta, as.factor)
   batches <- levels(meta$batches)
   spatial_locs <- Reduce(rbind, lapply(batches, function(batch) {
-    return(object@images[[batch]]@coordinates[, c("imagerow", "imagecol")])
+    coord <- object@images[[batch]]@coordinates
+    if (("imagerow" %in% colnames(coord)) && ("imagecol" %in% colnames(coord))) {
+      coord <- coord[, c("imagerow", "imagecol")]
+    } else {
+      coord <- coord[, 1:2]
+    }
+    coord
   }))
   spot_size <- 65
   spatial_factors <- Reduce(rbind, lapply(batches, function(batch) {
