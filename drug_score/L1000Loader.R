@@ -70,8 +70,8 @@ loadLincsTwoPhasesDrugResponse <- function(
       drug_response <- merge(phase1_drugs$response, phase2_drugs$response, by = "gene_id")
       sig_info <- rbind(phase1_drugs$sig_info, phase2_drugs$sig_info)
     }
-    rownames(drug_response) <- drug_response[, 1]
-    drug_response <- drug_response[, -1]
+    rownames(drug_response) <- drug_response$gene_id
+    drug_response <- drug_response[, colnames(drug_response) != "gene_id"]
     return(list(
       response = drug_response,
       sig_info = sig_info,
