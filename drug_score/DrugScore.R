@@ -207,6 +207,13 @@ calcDrugFdr <- function(drugs, ceg_pval, gene_importance, sig_info) {
   return(df)
 }
 
+combinePvals <- function(pvals) {
+  lnp <- log(pvals)
+  chisq <- (-2) * sum(lnp)
+  df <- 2 * length(lnp)
+  pchisq(chisq, df, lower.tail = F)
+}
+
 calcDrugEfficacyScore <- function(gdsc, tissue, drugs) {
   scores <- gdsc[gdsc$tissue == tissue, ]
   scores <- 1 - scores[match(drugs, scores$drug), "normalized_ic50"]
@@ -271,29 +278,37 @@ calcDrugScore <- function(
   drug_scores <- data.frame()
   for (drug in drugs) {
     drug_score <- 0
-    
+    drug_pvals <- NULL
     for (domain in domains) {
+      pval <- fdr_map[[domain]][drug, "pval"]
       fdr <- fdr_map[[domain]][drug, "fdr"]
       domain_score <- domain_props[[domain]] * (-log(fdr + 1e-10))
       if (!is.null(cci_score)) {
         domain_score <- domain_score * cci_score[[domain]]
       }
       drug_score <- drug_score + domain_score
-      drug_scores <- rbind(drug_scores,
-                           data.frame(
-                             drug = drug,
-                             domain = domain,
-                             score = domain_score
-                           ))
+      domain_score_df <- data.frame(
+        drug = drug,
+        domain = domain,
+        score = domain_score,
+        pval = pval,
+        fdr = fdr
+      )
+      drug_scores <- rbind(drug_scores, domain_score_df)
+      drug_pvals <- c(drug_pvals, pval)
     }
     
-    drug_scores <- rbind(drug_scores,
-                         data.frame(
-                           drug = drug,
-                           domain = "all",
-                           score = drug_score
-                         ))
+    drug_score_df <- data.frame(
+      drug = drug,
+      domain = "all",
+      score = drug_score,
+      pval = combinePvals(drug_pvals),
+      fdr = 0
+    )
+    drug_scores <- rbind(drug_scores, drug_score_df)
   }
+  mask <- drug_scores$domain == "all"
+  drug_scores[mask, "fdr"] <- p.adjust(drug_scores[mask, "pval"], method = "BH")
   
   # Save drug results with each domain score
   if (!is.null(checkpoint_path)) {
