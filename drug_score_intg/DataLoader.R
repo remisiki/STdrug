@@ -345,3 +345,93 @@ loadSampleData <- function(
   
   return(list(patients = patients, data = data_list, domains = domains))
 }
+
+loadIntegratedDrugResponse <- function(
+  data_path,   # .rds (SingleCellExperiment) preferred; .h5ad supported
+  meta_tsv,    # kept for compatibility; used only if needed for H5AD
+  tissue       # value compared to 'tissue_site_unified'
+) {
+  response <- NULL
+  sig_info <- NULL
+
+  if (!is.null(data_path) && grepl("\\.rds$", data_path, ignore.case = TRUE)) {
+    # ---------- RDS (SingleCellExperiment) ----------
+    sce <- readRDS(data_path)
+    # Expect:
+    # assays(sce)$X  (genes x signatures)
+    # rownames(sce)  -> gene symbols
+    # colData(sce)   -> has 'unified_id','drug_label','cell_std','tissue_site_unified', etc.
+
+    if (!("X" %in% SummarizedExperiment::assayNames(sce))) {
+      stop("Assay 'X' not found in SCE.")
+    }
+    X <- SummarizedExperiment::assay(sce, "X")
+    genes <- rownames(sce)
+    cd <- as.data.frame(SummarizedExperiment::colData(sce))
+
+    req_cols <- c("unified_id", "drug_label", "cell_std", "tissue_site_unified")
+    missing <- setdiff(req_cols, colnames(cd))
+    if (length(missing) > 0) stop(paste("Missing columns in colData:", paste(missing, collapse=", ")))
+
+    # Filter by tissue
+    keep <- if (!is.null(tissue)) cd$tissue_site_unified == tissue else rep(TRUE, nrow(cd))
+    if (!any(keep)) stop(paste0("No signatures match tissue '", tissue, "' in SCE colData$tissue_site_unified."))
+
+    X <- X[, keep, drop = FALSE]
+    cd <- cd[keep, , drop = FALSE]
+
+    # Build outputs
+    if (is.null(colnames(X))) colnames(X) <- cd$unified_id else {
+      # ensure colnames follow unified_id (use colData as truth)
+      colnames(X) <- cd$unified_id
+    }
+    rownames(X) <- genes
+
+    response <- as.data.frame(X)  # genes (symbols) x sig_id
+    sig_info <- unique(cd[, c("unified_id", "drug_label", "cell_std")])
+    colnames(sig_info) <- c("sig_id", "pert_iname", "cell_id")
+    rownames(sig_info) <- sig_info$sig_id
+
+  } else {
+    # H5ad (we have rds now)
+    ok <- requireNamespace("zellkonverter", quietly = TRUE)
+    if (ok) {
+      sce <- zellkonverter::readH5AD(data_path)
+      X <- SummarizedExperiment::assay(sce, "X")
+      genes <- rownames(sce)
+      cd <- as.data.frame(SummarizedExperiment::colData(sce))
+      # If H5AD lacks full colData, read meta TSV
+      if (!all(c("unified_id","drug_label","cell_std","tissue_site_unified") %in% colnames(cd))) {
+        meta <- read.delim(meta_tsv, sep = "\t", header = TRUE, check.names = FALSE)
+        # Align by obs_names (assume obs_names == an index present in meta or unified_id)
+        obs_names <- colnames(X)
+        if ("unified_id" %in% colnames(meta) && all(obs_names %in% meta$unified_id)) {
+          cd <- meta[match(obs_names, meta$unified_id), ]
+        } else if (colnames(sce) %in% meta[[1]]) {
+          cd <- meta[match(colnames(sce), meta[[1]]), ]
+        } else {
+          stop("Could not align H5AD columns with metadata TSV.")
+        }
+      }
+
+      keep <- if (!is.null(tissue)) cd$tissue_site_unified == tissue else rep(TRUE, nrow(cd))
+      if (!any(keep)) stop(paste0("No signatures match tissue '", tissue, "' (H5AD)."))
+
+      X <- X[, keep, drop = FALSE]
+      cd <- cd[keep, , drop = FALSE]
+
+      colnames(X) <- cd$unified_id
+      rownames(X) <- genes
+
+      response <- as.data.frame(X)
+      sig_info <- unique(cd[, c("unified_id", "drug_label", "cell_std")])
+      colnames(sig_info) <- c("sig_id", "pert_iname", "cell_id")
+      rownames(sig_info) <- sig_info$sig_id
+
+    } else {
+      stop("zellkonverter not installed. Install it or provide the RDS SCE.")
+    }
+  }
+
+  list(response = response, sig_info = sig_info)
+}

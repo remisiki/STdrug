@@ -8,8 +8,9 @@ spec <- matrix(
     "patients", "p", 1, "character",
     "tissue", "t", 1, "character",
     "output", "o", 1, "character",
-    "lincs-phase1-path", "l1", 1, "character",
-    "lincs-phase2-path", "l2", 1, "character",
+    "integrated-rds",  "ir", 1, "character",
+    "integrated-h5ad", "ih", 1, "character",
+    "integrated-meta", "im", 1, "character",
     "cluster-output-path", "co", 1, "character",
     "checkpoint-path", "cp", 1, "character",
     "drug-annotation-path", "dp", 1, "character",
@@ -32,8 +33,9 @@ if (!is.null(patients)) {
 }
 tissue <- opt[["tissue"]]
 output_dir <- opt[["output"]]
-lincs_drug_response_phase1_path <- opt[["lincs-phase1-path"]]
-lincs_drug_response_phase2_path <- opt[["lincs-phase2-path"]]
+integrated_rds_path  <- opt[["integrated-rds"]]
+integrated_h5ad_path <- opt[["integrated-h5ad"]]
+integrated_meta_path <- opt[["integrated-meta"]]
 cluster_output_path <- opt[["cluster-output-path"]]
 checkpoint_path <- opt[["checkpoint-path"]]
 drug_annotation_path <- opt[["drug-annotation-path"]]
@@ -80,7 +82,12 @@ if (!is.null(checkpoint_path)) {
 }
 
 # Load L1000, gpt-4o drug annotations, GDSC, Sider
-l1000 <- loadLincsTwoPhasesDrugResponse(lincs_drug_response_phase1_path, lincs_drug_response_phase2_path, tissue)
+l1000 <- loadIntegratedDrugResponse(
+  data_path = if (!is.null(integrated_rds_path)) integrated_rds_path else integrated_h5ad_path,
+  meta_tsv  = integrated_meta_path,
+  tissue    = tissue
+)
+
 drug_annotation <- read.csv(drug_annotation_path, row.names = 1)
 gdsc <- read.csv(gdsc_path, row.names = 1)
 sider <- read.csv(sider_path, row.names = 1)

@@ -144,47 +144,42 @@ calcCciRatio <- function(
 }
 
 calcCegPval <- function(degs, l1000) {
-  # Match common gene
-  common_genes <- intersect(rownames(degs), unique(l1000$gene_info$pr_gene_symbol))
-  common_gene_ids <- as.character(l1000$gene_info[match(common_genes, l1000$gene_info$pr_gene_symbol), "pr_gene_id"])
-  response <- as.data.frame(l1000$response)[common_gene_ids, ]
-  degs <- degs[common_genes, ]
-  # Rank L1000 response and DEGs
-  response <- apply(response, 2, function(x) {
-    rank(-x, ties.method = "first")
-  })
-  degs$rank <- rank(degs$score, ties.method = "first")
-  deg_rank <- as.matrix(replicate(ncol(response), degs$rank))
-  # Calculate pval of type 1 CEG
-  order_stat <- pmin(response, deg_rank)
-  p_min <- 1 - pbeta((order_stat - 1) / nrow(order_stat), 1, 2, lower.tail = T)
-  # Calculate pval of type 2 CEG
-  order_stat <- pmax(response, deg_rank)
-  p_max <- pbeta(order_stat / nrow(order_stat), 2, 1, lower.tail = T)
-  # Calculate sum of z scores
-  p_score <- pmin(p_min, p_max)
-  return(p_score)
+  # l1000$response: genes (symbols) . signatures (sig_id)
+  common_genes <- intersect(rownames(degs), rownames(l1000$response))
+  if (length(common_genes) == 0) {
+    stop("No overlap between DEG genes and integrated response genes (by symbol).")
+  }
+  response <- as.matrix(l1000$response[common_genes, , drop = FALSE])
+  degs     <- degs[common_genes, , drop = FALSE]
+
+  response_rank <- apply(response, 2, function(x) rank(-x, ties.method = "first"))
+  deg_rank_vec  <- rank(degs$score, ties.method = "first")
+  deg_rank      <- matrix(deg_rank_vec, nrow = length(deg_rank_vec), ncol = ncol(response_rank))
+
+  order_stat_min <- pmin(response_rank, deg_rank)
+  p_min <- 1 - pbeta((order_stat_min - 1) / nrow(order_stat_min), 1, 2, lower.tail = TRUE)
+
+  order_stat_max <- pmax(response_rank, deg_rank)
+  p_max <- pbeta(order_stat_max / nrow(order_stat_max), 2, 1, lower.tail = TRUE)
+
+  pmin(p_min, p_max)
 }
 
 calcGeneImportance <- function(ceg_pval, l1000, drug_annotation) {
-  train <- t(ceg_pval)
+  train <- t(ceg_pval)  # signatures . genes
   sig_info <- l1000$sig_info
-  gene_info <- l1000$gene_info
+
   drug_names <- sig_info[match(rownames(train), sig_info$sig_id), "pert_iname"]
   labels <- as.numeric(drug_annotation[match(drug_names, drug_annotation$drug_name), "response_gpt"] == "True")
-  xgb <- xgboost::xgboost(
-    train,
-    labels,
-    nrounds = 500,
-    objective = "binary:logistic",
-    verbose = 1
-  )
-  gene_importance <- data.frame(gene_id = colnames(train), score = 0)
-  xgb_importance <- xgboost::xgb.importance(model = xgb)[, c("Feature", "Gain")]
-  gene_importance[match(xgb_importance$Feature, gene_importance$gene_id), "score"] <- xgb_importance$Gain
-  gene_importance$gene_symbol <- gene_info[match(gene_importance$gene_id, gene_info$pr_gene_id), "pr_gene_symbol"]
-  gene_importance <- gene_importance[match(rownames(ceg_pval), gene_importance$gene_id), "score"]
-  return(gene_importance)
+
+  xgb <- xgboost::xgboost(train, labels, nrounds = 500, objective = "binary:logistic", verbose = 1)
+
+  imp <- xgboost::xgb.importance(model = xgb)[, c("Feature", "Gain")]
+  gene_symbols <- colnames(train)
+  gene_importance <- setNames(rep(0, length(gene_symbols)), gene_symbols)
+  gene_importance[imp$Feature] <- imp$Gain
+
+  gene_importance[rownames(ceg_pval)]
 }
 
 calcDrugFdr <- function(drugs, ceg_pval, gene_importance, sig_info) {
