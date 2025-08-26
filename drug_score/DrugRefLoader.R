@@ -6,9 +6,10 @@ loadLincsDrugResponse <- function(
   message(paste0("Read signature info from ", sig_info_file))
   sig_info <- read.csv(sig_info_file, sep = "\t")
   # Subset sig info to cell lines of interest
+  fda_drugs <- readLines("/nfs/dcmb-lgarmire/yangiwen/workspace/stads/data/drug_validation/fda.txt")
   sig_ids <- sig_info[sig_info$cell_id %in% cell_lines &
                         sig_info$pert_type == "trt_cp" &
-                        sig_info$pert_iname %in% Asgard::FDA.drug, "sig_id"]
+                        sig_info$pert_iname %in% fda_drugs, "sig_id"]
   sig_info <- sig_info[, c("sig_id", "pert_iname")]
   rownames(sig_info) <- sig_info$sig_id
   sig_info <- sig_info[sig_ids, ]
@@ -78,4 +79,36 @@ loadLincsTwoPhasesDrugResponse <- function(
       gene_info = gene_info
     ))
   }
+}
+
+loadDrugRef <- function(
+  l1000_phase1_path,
+  l1000_phase2_path,
+  tahoe_path,
+  tissue = "liver"
+) {
+  # Load L1000
+  l1000 <- loadLincsTwoPhasesDrugResponse(l1000_phase1_path, l1000_phase2_path, tissue)
+  # Load Tahoe
+  tahoe <- readRDS(file.path(tahoe_path, paste0(tissue, ".rds")))
+  # Intersect gene info
+  gene_info <- merge(l1000$gene_info, data.frame(gene = rownames(tahoe)), by.x = "pr_gene_symbol", by.y = "gene")
+  # Make sure gene id is string
+  gene_info$pr_gene_id <- as.character(gene_info$pr_gene_id)
+  gene_info <- gene_info[order(gene_info$pr_gene_id),]
+  # Subset response by common gene
+  l1000$response <- l1000$response[gene_info$pr_gene_id,]
+  tahoe_response <- as.data.frame(Seurat::GetAssayData(tahoe))
+  tahoe_response <- tahoe_response[gene_info$pr_gene_symbol,]
+  # Assign L1000 gene id to tahoe
+  rownames(tahoe_response) <- gene_info[match(rownames(tahoe_response), gene_info$pr_gene_symbol), "pr_gene_id"]
+  # Assign signature id of tahoe
+  colnames(tahoe_response) <- paste0("t_", seq_len(ncol(tahoe_response)))
+  tahoe_sig_info <- data.frame(sig_id = colnames(tahoe_response), pert_iname = tahoe@meta.data$drug_label)
+  # Combine datasets
+  list(
+    response = cbind(l1000$response, tahoe_response),
+    sig_info = rbind(l1000$sig_info, tahoe_sig_info),
+    gene_info = gene_info
+  )
 }

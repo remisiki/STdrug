@@ -143,11 +143,11 @@ calcCciRatio <- function(
   return(cellchat@net$weight)
 }
 
-calcCegPval <- function(degs, l1000) {
+calcCegPval <- function(degs, drug_ref) {
   # Match common gene
-  common_genes <- intersect(rownames(degs), unique(l1000$gene_info$pr_gene_symbol))
-  common_gene_ids <- as.character(l1000$gene_info[match(common_genes, l1000$gene_info$pr_gene_symbol), "pr_gene_id"])
-  response <- as.data.frame(l1000$response)[common_gene_ids, ]
+  common_genes <- intersect(rownames(degs), unique(drug_ref$gene_info$pr_gene_symbol))
+  common_gene_ids <- as.character(drug_ref$gene_info[match(common_genes, drug_ref$gene_info$pr_gene_symbol), "pr_gene_id"])
+  response <- as.data.frame(drug_ref$response)[common_gene_ids, ]
   degs <- degs[common_genes, ]
   # Rank L1000 response and DEGs
   response <- apply(response, 2, function(x) {
@@ -166,10 +166,10 @@ calcCegPval <- function(degs, l1000) {
   return(p_score)
 }
 
-calcGeneImportance <- function(ceg_pval, l1000, drug_annotation) {
+calcGeneImportance <- function(ceg_pval, drug_ref, drug_annotation) {
   train <- t(ceg_pval)
-  sig_info <- l1000$sig_info
-  gene_info <- l1000$gene_info
+  sig_info <- drug_ref$sig_info
+  gene_info <- drug_ref$gene_info
   drug_names <- sig_info[match(rownames(train), sig_info$sig_id), "pert_iname"]
   labels <- as.numeric(drug_annotation[match(drug_names, drug_annotation$drug_name), "response_gpt"] == "True")
   xgb <- xgboost::xgboost(
@@ -231,7 +231,7 @@ calcDrugScore <- function(
   normal_samples,
   patient,
   domains,
-  l1000,
+  drug_ref,
   drug_annotation,
   gdsc,
   sider,
@@ -252,7 +252,7 @@ calcDrugScore <- function(
   }
   
   # FDR
-  drugs <- unique(l1000$sig_info[match(colnames(l1000$response), l1000$sig_info$sig_id), "pert_iname"])
+  drugs <- unique(drug_ref$sig_info[match(colnames(drug_ref$response), drug_ref$sig_info$sig_id), "pert_iname"])
   fdr_map <- list()
   for (domain in domains) {
     message(paste0("STADS domain ", domain))
@@ -265,13 +265,13 @@ calcDrugScore <- function(
     domain_degs <- calcDeg(domain_normal_samples, domain_tumor_samples)
     # Find CEGs
     message("Find CEG")
-    ceg_pval <- calcCegPval(domain_degs, l1000)
+    ceg_pval <- calcCegPval(domain_degs, drug_ref)
     # Calculate gene importance
     message("Calculate gene importance")
-    gene_importance <- calcGeneImportance(ceg_pval, l1000, drug_annotation)
+    gene_importance <- calcGeneImportance(ceg_pval, drug_ref, drug_annotation)
     # Calculate OS score and FDR
     message("Calculate drug fdr")
-    fdr_map[[domain]] <- calcDrugFdr(drugs, ceg_pval, gene_importance, l1000$sig_info)
+    fdr_map[[domain]] <- calcDrugFdr(drugs, ceg_pval, gene_importance, drug_ref$sig_info)
   }
   
   # Calculate patient therapeutic score
