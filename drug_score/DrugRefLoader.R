@@ -90,7 +90,8 @@ loadDrugRef <- function(
   # Load L1000
   l1000 <- loadLincsTwoPhasesDrugResponse(l1000_phase1_path, l1000_phase2_path, tissue)
   # Load Tahoe
-  tahoe <- readRDS(file.path(tahoe_path, paste0(tissue, ".rds")))
+  tahoe <- readRDS(tahoe_path)
+  tahoe <- subsetSeurat(tahoe, "tissue_site_unified", tissue)
   # Intersect gene info
   gene_info <- merge(l1000$gene_info, data.frame(gene = rownames(tahoe)), by.x = "pr_gene_symbol", by.y = "gene")
   # Make sure gene id is string
