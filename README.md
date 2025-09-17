@@ -37,6 +37,76 @@ renv::install("./")
 
 # Tutorial
 
+## Data preparation
+
+Download input data required for STDrug input from Dropbox (TBA). After downloading, the folder should have the following files:
+
+- List of input files
+
+Download sample data analyzed in the manuscript: HCC liver cancer (TBA) and PCa prostate cancer (TBA).
+
+## Spatial domain identification
+
+The first step of STDrug is to identify spatial domains that match patient tumor tissue and adjacent normal tissue. Run Python script using
+
+```bash
+python3 -u domain_matching/main.py \
+  --data-name '<name of dataset>' \
+  --nclust '<number of spatial domains>' \
+  --output '<output directory>'
+```
+
+The parameters are defined as:
+
+| Option    | Description                                            | Example      |
+|-----------|--------------------------------------------------------|--------------|
+| data-name | Name of sample dataset (Custom dataset TBA)            | hcc/prostate |
+| nclust    | Number of spatial domains                              | 5            |
+| output    | Directory to save spatial domains and checkpoint files | ./output     |
+
+This module should produce output files in the following structure:
+
+```
+./output
+|-- checkpoint
+|  |-- stads_cluster.h5ad // AnnData of integrated spatial data with spatial clustering
+|-- partition.csv // Spatial domain annotation and meta data
+```
+
+## Drug repurposing
+
+Following the spatial domain identification module, STDrug uses a comprehensive drug ranking algorithm to repurpose drugs personalized for each patient. In this step, use R script to run the module
+
+```bash
+# TODO merge input path under one folder
+Rscript drug_score/Main.R \
+  --data-name '<name of dataset>' \
+  --tissue '<tissue kind>' \
+  --output '<output directory>' \
+  --lincs-phase1-path '<>' \
+  --lincs-phase2-path '<>' \
+  --tahoe-path '<>' \
+  --cluster-output-path '<output directory of spatial domains>' \
+  --checkpoint-path '<checkpoint save directory>' \
+  --drug-annotation-path '<>' \
+  --gdsc-path '<>' \
+  --sider-path '<>'
+```
+
+STDrug generates drug outputs structured as follows. The repurposed top drugs can be inspected from `./output/drugs_<patient>.csv`.
+
+```
+./output
+|-- checkpoint
+|  |-- cci_ratio_<patient>.csv // Cell-cell interation results for patient
+|  |-- drug_scores_<patient>.csv // Spatial domain specific drug score results for patient
+|  |-- stads_cluster.h5ad // AnnData of integrated spatial data with spatial clustering
+|  |-- stads_cluster.rds // Seurat object of integrated spatial data with spatial clustering
+|-- drugs_<patient>.csv // Drug score and ranking for patient, higher drug score means better treatment potential
+|-- partition.csv // Spatial domain annotation and meta data
+
+```
+
 # Contributor
 
 # Citation
