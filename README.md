@@ -78,19 +78,13 @@ This module should produce output files in the following structure:
 Following the spatial domain identification module, STDrug uses a comprehensive drug ranking algorithm to repurpose drugs personalized for each patient. In this step, use R script to run the module
 
 ```bash
-# TODO merge input path under one folder
 Rscript drug_score/Main.R \
   --data-name '<name of dataset>' \
   --tissue '<tissue kind>' \
   --output '<output directory>' \
-  --lincs-phase1-path '<>' \
-  --lincs-phase2-path '<>' \
-  --tahoe-path '<>' \
+  --public-data-path '<public data path downloaded from dropbox>' \
   --cluster-output-path '<output directory of spatial domains>' \
-  --checkpoint-path '<checkpoint save directory>' \
-  --drug-annotation-path '<>' \
-  --gdsc-path '<>' \
-  --sider-path '<>'
+  --checkpoint-path '<checkpoint save directory>'
 ```
 
 STDrug generates drug outputs structured as follows. The repurposed top drugs can be inspected from `./output/drugs_<patient>.csv`.

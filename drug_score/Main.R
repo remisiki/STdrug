@@ -8,6 +8,7 @@ spec <- matrix(
     "patients", "p", 1, "character",
     "tissue", "t", 1, "character",
     "output", "o", 1, "character",
+    "public-data-path", "pp", 1, "character",
     "lincs-phase1-path", "l1", 1, "character",
     "lincs-phase2-path", "l2", 1, "character",
     "tahoe-path", "th", 1, "character",
@@ -33,14 +34,33 @@ if (!is.null(patients)) {
 }
 tissue <- opt[["tissue"]]
 output_dir <- opt[["output"]]
+public_data_path <- opt[["public-data-path"]]
 lincs_drug_response_phase1_path <- opt[["lincs-phase1-path"]]
+if (is.null(lincs_drug_response_phase1_path)) {
+  lincs_drug_response_phase1_path <- file.path(public_data_path, "reference", "l1000", "GSE92742")
+}
 lincs_drug_response_phase2_path <- opt[["lincs-phase2-path"]]
+if (is.null(lincs_drug_response_phase2_path)) {
+  lincs_drug_response_phase2_path <- file.path(public_data_path, "reference", "l1000", "GSE70138")
+}
 tahoe_path <- opt[["tahoe-path"]]
+if (is.null(tahoe_path)) {
+  tahoe_path <- file.path(public_data_path, "reference", "tahoe", "drug_ref.rds")
+}
 cluster_output_path <- opt[["cluster-output-path"]]
 checkpoint_path <- opt[["checkpoint-path"]]
 drug_annotation_path <- opt[["drug-annotation-path"]]
+if (is.null(drug_annotation_path)) {
+  drug_annotation_path <- file.path(public_data_path, "reference", "drug_validation")
+}
 gdsc_path <- opt[["gdsc-path"]]
+if (is.null(gdsc_path)) {
+  gdsc_path <- file.path(public_data_path, "reference", "gdsc.csv")
+}
 sider_path <- opt[["sider-path"]]
+if (is.null(sider_path)) {
+  sider_path <- file.path(public_data_path, "reference", "sider.csv")
+}
 drop_celltype <- opt[["drop-celltype"]]
 if (!is.null(drop_celltype)) {
   drop_celltype <- unlist(lsplit(drop_celltype, "\\|"))
@@ -83,7 +103,7 @@ if (!is.null(checkpoint_path)) {
 
 # Load drug reference, gpt-4o drug annotations, GDSC, Sider
 drug_ref <- loadDrugRef(lincs_drug_response_phase1_path, lincs_drug_response_phase2_path, tahoe_path, tissue)
-drug_annotation <- read.csv(drug_annotation_path, row.names = 1)
+drug_annotation <- read.csv(file.path(drug_annotation_path, paste0(tissue, ".csv")), row.names = 1)
 gdsc <- read.csv(gdsc_path, row.names = 1)
 sider <- read.csv(sider_path, row.names = 1)
 
