@@ -1,6 +1,6 @@
 source("/nfs/dcmb-lgarmire/yangiwen/workspace/stads/stable/drug_score/DrugScore.R")
 source("/nfs/dcmb-lgarmire/yangiwen/workspace/stads/stable/drug_score/DataLoader.R")
-source("/nfs/dcmb-lgarmire/yangiwen/workspace/stads/stable/drug_score/L1000Loader.R")
+source("/nfs/dcmb-lgarmire/yangiwen/workspace/stads/stable/drug_score/DrugRefLoader.R")
 
 calcReversedGeneEnrichedPathways <- function(
   tumor_samples,
@@ -186,15 +186,16 @@ runGsea <- function(
 
 library(Seurat)
 
-data_name <- "prostate"
-tissue <- "prostate"
+data_name <- "hcc"
+tissue <- "liver"
 lincs_drug_response_phase1_path <- "/nfs/dcmb-lgarmire/yangiwen/workspace/stads/data/l1000/GSE92742"
 lincs_drug_response_phase2_path <- "/nfs/dcmb-lgarmire/yangiwen/workspace/stads/data/l1000/GSE70138"
-cluster_output_path <- file.path("/nfs/dcmb-lgarmire/yangiwen/workspace/stads/output", data_name, "stads/stable")
-drug <- "mitoxantrone"
+tahoe_path <- "/nfs/dcmb-lgarmire/yangiwen/workspace/stads/data/tahoe"
+cluster_output_path <- file.path("/nfs/dcmb-lgarmire/yangiwen/workspace/stads/output", data_name, "stads/test")
+drug <- "bosutinib"
 output_dir <- file.path("/nfs/dcmb-lgarmire/yangiwen/workspace/stads/output", data_name, "gsea", drug)
 
-l1000 <- loadLincsTwoPhasesDrugResponse(lincs_drug_response_phase1_path, lincs_drug_response_phase2_path, tissue)
+drug_ref <- loadDrugRef(lincs_drug_response_phase1_path, lincs_drug_response_phase2_path, tahoe_path, tissue)
 
 data_factory <- loadSampleData(cluster_output_path = cluster_output_path, data_name = data_name)
 patients <- data_factory$patients
@@ -210,7 +211,7 @@ for (patient in patients) {
     tumor_samples = tumor_samples,
     normal_samples = normal_samples,
     domains = domains,
-    l1000 = l1000,
+    l1000 = drug_ref,
     output_dir = file.path(output_dir, patient)
   )
 }
