@@ -38,7 +38,7 @@ saveProstateData <- function() {
       visium_path <- file.path(data_dir, batch)
       condition <- ifelse(batch %in% tumor_cases, "T", "N")
       data <- loadVisium(visium_path, batch, patient, condition)
-      data <- preprocessQualityControl(data, min_genes = 3)
+      data <- preprocessQualityControl(data, min_genes = 100, min_counts = 500)
       integrated_data[[batch]] <- data
     }
     # Merge slices from one patient
@@ -296,6 +296,26 @@ loadSampleData <- function(
           normal_samples[[domain_key]] <- partition[partition$batch %in% batches, ]$cluster
           batches <- unique(tumor_samples$batch)
           tumor_samples[[domain_key]] <- partition[partition$batch %in% batches, ]$cluster
+        }
+        data_list[[patient]] <- list(normal = normal_samples, tumor = tumor_samples)
+      }
+    } else if (data_name == "pancreas") {
+      message("Load pancreas dataset")
+      data_dir <- "/nfs/dcmb-lgarmire/yangiwen/workspace/stads/data/pancreas/GSE272362"
+      if (is.null(patients)) {
+        patients <- c("PT_2", "PT_10", "PT_11")
+      }
+      for (patient in patients) {
+        message(patient)
+        normal_batch <- paste0(patient, "_N")
+        normal_samples <- loadVisium(file.path(data_dir, normal_batch), normal_batch, patient, "N")
+        normal_samples <- preprocessQualityControl(normal_samples, min_genes = 3)
+        tumor_batch <- paste0(patient, "_T")
+        tumor_samples <- loadVisium(file.path(data_dir, tumor_batch), tumor_batch, patient, "T")
+        tumor_samples <- preprocessQualityControl(tumor_samples, min_genes = 3)
+        if (!is.null(partition)) {
+          normal_samples[[domain_key]] <- partition[partition$batch == normal_batch, ]$cluster
+          tumor_samples[[domain_key]] <- partition[partition$batch == tumor_batch, ]$cluster
         }
         data_list[[patient]] <- list(normal = normal_samples, tumor = tumor_samples)
       }
