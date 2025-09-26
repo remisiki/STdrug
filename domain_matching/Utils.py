@@ -1,15 +1,20 @@
-import anndata as ad
-import scanpy as sc
-
 from pathlib import Path
 from typing import *
 
+import anndata as ad
+import scanpy as sc
 
-def preprocessBatchData(data: ad.AnnData):
+
+def preprocessBatchData(
+    data: ad.AnnData, min_genes: Optional[int] = None, min_counts: Optional[int] = None
+) -> ad.AnnData:
     data.var_names_make_unique()
     # Quality control
     n_cell = data.shape[0]
-    sc.pp.filter_cells(data, min_genes=3)
+    if min_genes is not None:
+        sc.pp.filter_cells(data, min_genes=min_genes)
+    if min_counts is not None:
+        sc.pp.filter_cells(data, min_counts=min_counts)
     n_cell_qc = data.shape[0]
     print(f"{n_cell_qc}/{n_cell} cells remained after quality control")
     return data
@@ -72,7 +77,7 @@ def loadData(
             condition = use_batch[-1:]
             data = sc.read_visium(Path(data_dir, patient, condition))
             data = addMeta(data, use_batch, patient, condition)
-            data = preprocess(data)
+            data = preprocess(data, min_genes=3)
             adata = data
         else:
             for patient in patients:
@@ -80,7 +85,7 @@ def loadData(
                     batch = patient + condition
                     data = sc.read_visium(Path(data_dir, patient, condition))
                     data = addMeta(data, batch, patient, condition)
-                    data = preprocess(data)
+                    data = preprocess(data, min_genes=3)
                     adatas[batch] = data
     elif data_name == "hcc_sim":
         data_dir = "/nfs/dcmb-lgarmire/shared/public/PMC8683021/simulation"
@@ -90,8 +95,8 @@ def loadData(
             patient = use_batch[:5]
             condition = use_batch[-1:]
             data = sc.read_h5ad(Path(data_dir, f"{use_batch}.h5ad"))
-            data = addMeta(data, batch, patient, condition)
-            data = preprocess(data)
+            data = addMeta(data, use_batch, patient, condition)
+            data = preprocess(data, min_genes=3)
             adata = data
         else:
             for patient in patients:
@@ -99,11 +104,12 @@ def loadData(
                     batch = patient + condition
                     data = sc.read_h5ad(Path(data_dir, f"{batch}.h5ad"))
                     data = addMeta(data, batch, patient, condition)
-                    data = preprocess(data)
+                    data = preprocess(data, min_genes=3)
                     adatas[batch] = data
     elif data_name == "pancreas":
         data_dir = "/nfs/dcmb-lgarmire/yangiwen/workspace/stads/data/pancreas/GSE272362"
-        patients = ["PT_10", "PT_11", "PT_2"]
+        # patient_ids = [*range(1, 5), 6, *range(8, 13)]
+        patient_ids = [11]
         conditions = ["N", "T"]
         if use_batch is not None:
             patient = use_batch[:5]
@@ -113,13 +119,15 @@ def loadData(
             data = preprocess(data)
             adata = data
         else:
-            for patient in patients:
+            for patient_id in patient_ids:
+                patient = f"PT_{patient_id}"
                 for condition in conditions:
-                    batch = patient + "_" + condition
-                    data = sc.read_visium(Path(data_dir, batch))
-                    data = addMeta(data, batch, patient, condition)
-                    data = preprocess(data)
-                    adatas[batch] = data
+                    if condition == "T" or patient_id in [2, 10, 11]:
+                        batch = patient + "_" + condition
+                        data = sc.read_visium(Path(data_dir, batch))
+                        data = addMeta(data, batch, patient, condition)
+                        data = preprocess(data)
+                        adatas[batch] = data
     elif data_name == "nsclc":
         data_dir = "/nfs/dcmb-lgarmire/yangiwen/workspace/stads/data/nsclc"
         patients = ["P10", "P11", "P15", "P16", "P17", "P19", "P24", "P25"]
@@ -401,7 +409,7 @@ def loadData(
             condition = "N" if use_batch[-4:] in batch_map[patient]["N"] else "T"
             data = sc.read_visium(Path(data_dir, use_batch))
             data = addMeta(data, use_batch, patient, condition)
-            data = preprocess(data)
+            data = preprocess(data, min_genes=100, min_counts=500)
             adata = data
         else:
             for patient in patients:
@@ -410,7 +418,7 @@ def loadData(
                         batch = f"{patient}_{batch}"
                         data = sc.read_visium(Path(data_dir, batch))
                         data = addMeta(data, batch, patient, condition)
-                        data = preprocess(data)
+                        data = preprocess(data, min_genes=100, min_counts=500)
                         adatas[batch] = data
     elif data_name == "prostate_hirz":
         data_dir = "/nfs/dcmb-lgarmire/yangiwen/workspace/stads/data/prostate/hirz"
