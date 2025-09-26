@@ -18,6 +18,15 @@ STADS consists of a spatial domain matching module and a drug score calculation 
 
 The package is tested under Python `3.11.7` and R `4.3.1`.
 
+Ensure both Python and base R environments are set up. A wrapper bash script can be used to install the required environment for running STDrug. This script will download all dependency packages and sample data into the current directory.
+
+
+```bash
+scripts/install.sh
+```
+
+If the wrapper script doesn't work, you can alternatively install the dependencies explicitly.
+
 Install Python requirements using `pip`:
 
 ```bash
@@ -44,6 +53,29 @@ Download input data required for STDrug input from Dropbox (TBA). After download
 - List of input files
 
 Download sample data analyzed in the manuscript: HCC liver cancer (TBA) and PCa prostate cancer (TBA).
+
+## Run STDrug
+
+To run the STDrug drug repurposing pipeline, use the wrapper bash script by executing:
+
+```bash
+scripts/stdrug.sh
+```
+
+This script runs STDrug pipeline on the HCC samples as analyzed in the manuscript. Change the hyperparameters in the script accordingly to run on other tissues.
+
+```bash
+# Pre-defined datasets, hcc or prostate
+dataName="hcc"
+# Tissue kind, liver for hcc, prostate for prostate
+tissue="liver"
+# Number of spatial domains
+nclust=5
+```
+
+The output folder should contain `drugs_<patient id>.csv` files that recommends potential drugs.
+
+If you need more customization, please follow the next steps to run STDrug modules separately.
 
 ## Spatial domain identification
 
