@@ -1,26 +1,15 @@
-"""
-please install:
-- harmonypy
-"""
-
 import SpaGCN as spg
 import anndata as ad
 import argparse
-import matplotlib.pyplot as plt
 import numpy as np
 import os
-import pandas as pd
 import scanpy as sc
 import scanpy.external as sce
-import seaborn as sns
 import torch
 
 from pathlib import Path
 from pycpd import DeformableRegistration
-from scipy.spatial.distance import pdist, squareform
 from typing import *
-
-import sys
 
 import Utils
 import Cluster
