@@ -11,7 +11,7 @@ import scanpy.external as sce
 import torch
 from pycpd import DeformableRegistration
 
-from . import Cluster
+from . import Cluster, SpatialGraph
 
 
 class CoherentPointDrift(DeformableRegistration):
@@ -76,7 +76,7 @@ def trainGcn(
         adata_batch = adata[adata.obs["batch"] == batch].copy()
 
         # Search for best resolution
-        res = spg.search_res(
+        res = SpatialGraph.searchResolution(
             adata_batch,
             spatial_graphs[batch],
             kernel_widths[batch],
@@ -87,7 +87,7 @@ def trainGcn(
         )
 
         # Init SpaGCN
-        clf = spg.SpaGCN()
+        clf = SpatialGraph.SpaGCN()
         clf.set_l(kernel_widths[batch])
         # ----------Start training----------
         adj = spatial_graphs[batch]
