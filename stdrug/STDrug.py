@@ -11,7 +11,7 @@ import scanpy.external as sce
 import torch
 from pycpd import DeformableRegistration
 
-import Cluster
+from . import Cluster
 
 
 class CoherentPointDrift(DeformableRegistration):
