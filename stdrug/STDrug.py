@@ -1,17 +1,16 @@
+import os
+from pathlib import Path
+from typing import *
+
 import SpaGCN as spg
 import anndata as ad
-import argparse
 import numpy as np
-import os
+import pandas as pd
 import scanpy as sc
 import scanpy.external as sce
 import torch
-
-from pathlib import Path
 from pycpd import DeformableRegistration
-from typing import *
 
-import Utils
 import Cluster
 
 
@@ -144,37 +143,57 @@ def coherentPointDrift(
     return adata
 
 
-def main():
-    # Parse arguments
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--data-name", type=str, help="Data name, either hcc or prostate"
-    )
-    parser.add_argument("--nclust", type=int, help="Number of cluster", default=5)
-    parser.add_argument("--output", type=str, help="Output directory")
-    parser.add_argument(
-        "--tolerance",
-        type=float,
-        help="Tolerance level of coherent point drift distance",
-        default=0.001,
-    )
-    parser.add_argument("--seed", type=int, help="Random seed", default=0)
-    args = parser.parse_args()
+def findSpatialDomains(
+    tumor_samples: ad.AnnData | List[ad.AnnData],
+    normal_samples: ad.AnnData | List[ad.AnnData],
+    nclust: int,
+    output_dir: Optional[Path] = None,
+    tolerance: float = 0.001,
+    seed: int = 0,
+) -> pd.DataFrame:
+    """
+    Identifies spatial domains within tumor and normal samples using STDrug clustering.
 
-    data_name = args.data_name
-    nclust = args.nclust
-    output_dir = args.output
-    os.makedirs(output_dir, exist_ok=True)
-    checkpoint_dir = Path(output_dir, "checkpoint")
-    os.makedirs(checkpoint_dir, exist_ok=True)
-    tolerance = args.tolerance
-    seed = args.seed
+    Args:
+        tumor_samples (ad.AnnData | List[ad.AnnData]): Spatal data for tumor samples in AnnData format.
+        normal_samples (ad.AnnData | List[ad.AnnData]): Spatial data for normal samples in AnnData format.
+        nclust (int): The number of clusters to form during the domain identification process.
+        output_dir (Optional[Path], optional): Directory to save output files. Defaults to None, which means no output will be saved.
+        tolerance (float, optional): The tolerance level for coherent point drift distance. Defaults to 0.001.
+        seed (int, optional): Random seed for reproducibility. Defaults to 0.
+    """
 
-    # Data Loading
-    print("Load data")
-    adata = Utils.loadData(data_name)
+    checkpoint_dir = None
+    if output_dir is not None:
+        os.makedirs(output_dir, exist_ok=True)
+        checkpoint_dir = Path(output_dir, "checkpoint")
+        os.makedirs(checkpoint_dir, exist_ok=True)
+
+    # Check data format
+    print("Check data format")
+    if len(tumor_samples) != len(normal_samples):
+        raise Exception(
+            "The number of tumor samples must match the number of normal samples"
+        )
+    for i in range(len(tumor_samples)):
+        if "batch" not in tumor_samples[i].obs.columns:
+            tumor_samples[i].obs["batch"] = f"sample{i}t"
+        if "patient" not in tumor_samples[i].obs.columns:
+            tumor_samples[i].obs["patient"] = "patient"
+        if "condition" not in tumor_samples[i].obs.columns:
+            tumor_samples[i].obs["condition"] = "tumor"
+        if "batch" not in normal_samples[i].obs.columns:
+            normal_samples[i].obs["batch"] = f"sample{i}n"
+        if "patient" not in normal_samples[i].obs.columns:
+            normal_samples[i].obs["patient"] = "patient"
+        if "condition" not in normal_samples[i].obs.columns:
+            normal_samples[i].obs["condition"] = "normal"
 
     # Preprocess
+    # Concat data
+    adata = [*tumor_samples, *normal_samples]
+    adata = ad.concat(adata, uns_merge="unique")
+    adata.obs_names_make_unique()
     # Normalize
     print("Normalize data")
     sc.pp.normalize_total(adata)
@@ -235,11 +254,11 @@ def main():
 
     # Save data
     print(f"Save results to {output_dir}")
-    adata.write_h5ad(Path(checkpoint_dir, "stads_cluster.h5ad"))
+    if checkpoint_dir is not None:
+        adata.write_h5ad(Path(checkpoint_dir, "stads_cluster.h5ad"))
     result_df = adata.obs[["batch", "cluster_stads"]]
     result_df.columns = ["batch", "cluster"]
-    result_df.to_csv(Path(output_dir, "partition.csv"))
+    if output_dir is not None:
+        result_df.to_csv(Path(output_dir, "partition.csv"))
 
-
-if __name__ == "__main__":
-    main()
+    return result_df
