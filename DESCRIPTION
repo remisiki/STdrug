@@ -1,5 +1,5 @@
 Package: STDrug
-Title: A Personalized Computational Method to Use Spatial Transcriptomics to Aid Drug-reposition Recommendation
+Title: A Computational Method to Use Spatial Transcriptomics to Aid Personalized Drug-reposition Recommendation
 Version: 0.0.1
 Authors@R:
     c(

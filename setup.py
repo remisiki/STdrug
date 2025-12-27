@@ -76,7 +76,7 @@ setup(
     ],
     author="Yiwen Yang",
     author_email="yangiwen@umich.edu",
-    description="STDrug: A Personalized Computational Method to Use Spatial Transcriptomics to Aid Drug-reposition Recommendation",
+    description="STDrug: A Computational Method to Use Spatial Transcriptomics to Aid Personalized Drug-reposition Recommendation",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
     url="https://github.com/remisiki/STdrug",

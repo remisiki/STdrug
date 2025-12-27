@@ -1,4 +1,4 @@
-# STADS: A Personalized Computational Method to Use Spatial Transcriptomics to Aid Drug-reposition Recommendation
+# STDrug: A Computational Method to Use Spatial Transcriptomics to Aid Personalized Drug-reposition Recommendation
 
 Drug repurposing is a cost-effective strategy for accelerating therapeutic discovery, yet existing single-cell RNA-seq (scRNA-seq)-based methods often overlook the spatial context critical for capturing tissue-specific drug responses. We introduce STADS (Spatial Transcriptomics to Aid Drug-reposition Strategy), a personalized computational framework that leverages spatial transcriptomics data to improve drug repurposing.
 
@@ -16,85 +16,101 @@ TBD
 
 STADS consists of a spatial domain matching module and a drug score calculation module, written in Python and R correspondingly. For a manual installation and custom package usage, please follow the directions here.
 
-The package is tested under Python `3.11.7` and R `4.3.1`.
-
-Ensure both Python and base R environments are set up. A wrapper bash script can be used to install the required environment for running STDrug. This script will download all dependency packages and sample data into the current directory.
-
-
-```bash
-scripts/install.sh
-```
-
-If the wrapper script doesn't work, you can alternatively install the dependencies explicitly.
+The package is tested under Python `3.12.10` and R `4.5.2`.
 
 Install Python requirements using `pip`:
 
 ```bash
-# To be added
-pip install -r requirements.txt
+pip install 'git+https://github.com/remisiki/STdrug.git'
 ```
 
-Install R environments using `renv`:
+Install R environments using `devtools`:
 
 ```r
-# To be added
-install.packages("renv")
-renv::init()
-renv::activate()
-renv::install("./")
+install.packages("devtools")
+devtools::install_github("remisiki/STdrug")
 ```
 
 # Tutorial
 
 ## Data preparation
 
-Download input data required for STDrug input from Dropbox (TBA). After downloading, the folder should have the following files:
+Download drug reference data required for STDrug input from [Dropbox](https://www.dropbox.com/scl/fo/sc7tyjuw9k5ci5v0svyw7/AIya9k7PQH786X8bleDW7KY?rlkey=j1fzh131dyl0xffy5pa6j26dl&st=5ti8ct69&dl=0). It is recommended to create a folder named `data` and extract the reference files under `data/reference`. After downloading, the folder should have the following structure:
 
-- List of input files
-
-Download sample data analyzed in the manuscript: HCC liver cancer (TBA) and PCa prostate cancer (TBA).
-
-## Run STDrug
-
-To run the STDrug drug repurposing pipeline, use the wrapper bash script by executing:
-
-```bash
-scripts/stdrug.sh
+```
+data
+└── reference
+    ├── drug_validation
+    │   ├── liver.csv
+    │   └── prostate.csv
+    ├── l1000
+    │   ├── GSE70138.tar.gz
+    │   └── GSE92742.tar.gz
+    ├── tahoe
+    │   └── drug_ref.rds
+    ├── fda.txt
+    ├── gdsc.csv
+    └── sider.csv
 ```
 
-This script runs STDrug pipeline on the HCC samples as analyzed in the manuscript. Change the hyperparameters in the script accordingly to run on other tissues.
-
+Extract tarball files using `tar`:
 ```bash
-# Pre-defined datasets, hcc or prostate
-dataName="hcc"
-# Tissue kind, liver for hcc, prostate for prostate
-tissue="liver"
-# Number of spatial domains
-nclust=5
+tar -xzvf data/reference/l1000/GSE70138.tar.gz -C data/reference/l1000
+tar -xzvf data/reference/l1000/GSE92742.tar.gz -C data/reference/l1000
 ```
 
-The output folder should contain `drugs_<patient id>.csv` files that recommends potential drugs.
+After extraction, the folder structure should have the following structure:
+```
+data
+└── reference
+    ├── drug_validation
+    │   ├── liver.csv
+    │   └── prostate.csv
+    ├── l1000
+    │   ├── GSE70138
+    │   │   ├── GSE70138_Broad_LINCS_cell_info_2017-04-28.txt
+    │   │   ├── GSE70138_Broad_LINCS_gene_info_2017-03-06.txt
+    │   │   ├── GSE70138_Broad_LINCS_inst_info_2017-03-06.txt
+    │   │   ├── GSE70138_Broad_LINCS_Level5_COMPZ_n118050x12328_2017-03-06.gctx
+    │   │   └── GSE70138_Broad_LINCS_sig_info_2017-03-06.txt
+    │   └── GSE92742
+    │       ├── GSE92742_Broad_LINCS_cell_info.txt
+    │       ├── GSE92742_Broad_LINCS_gene_info.txt
+    │       ├── GSE92742_Broad_LINCS_Level5_COMPZ.MODZ_n473647x12328.gctx
+    │       └── GSE92742_Broad_LINCS_sig_info.txt
+    ├── tahoe
+    │   └── drug_ref.rds
+    ├── fda.txt
+    ├── gdsc.csv
+    └── sider.csv
+```
 
-If you need more customization, please follow the next steps to run STDrug modules separately.
+(Optional) Download the sample data analyzed in the manuscript from [Dropbox](https://www.dropbox.com/scl/fo/momgw9d38zx60d8t5sta8/ALdWi7fPJH1MSuVWYPvqFwc?rlkey=5w1fx7ft7fwlg03t5yk013d5w&st=ai5chwd7&dl=0). You can also put them under `data`.
+```
+data
+├── HCC01N.h5ad
+├── HCC01N.rds
+├── HCC01T.h5ad
+├── HCC01T.rds
+├── HCC02N.h5ad
+├── HCC02N.rds
+├── HCC02T.h5ad
+├── HCC02T.rds
+├── HCC03N.h5ad
+├── HCC03N.rds
+├── HCC03T.h5ad
+├── HCC03T.rds
+├── HCC04N.h5ad
+├── HCC04N.rds
+├── HCC04T.h5ad
+└── HCC04T.rds
+```
+
+# Quick Start
 
 ## Spatial domain identification
 
-The first step of STDrug is to identify spatial domains that match patient tumor tissue and adjacent normal tissue. Run Python script using
-
-```bash
-python3 -u domain_matching/main.py \
-  --data-name '<name of dataset>' \
-  --nclust '<number of spatial domains>' \
-  --output '<output directory>'
-```
-
-The parameters are defined as:
-
-| Option    | Description                                            | Example      |
-|-----------|--------------------------------------------------------|--------------|
-| data-name | Name of sample dataset (Custom dataset TBA)            | hcc/prostate |
-| nclust    | Number of spatial domains                              | 5            |
-| output    | Directory to save spatial domains and checkpoint files | ./output     |
+The first step of STDrug is to identify spatial domains that match patient tumor tissue and adjacent normal tissue. Run Python script following the tutorial [Identify spatial domains using STDrug for multiple samples](https://remisiki.github.io/STdrug/spatial-domain-identification-example).
 
 This module should produce output files in the following structure:
 
@@ -107,17 +123,7 @@ This module should produce output files in the following structure:
 
 ## Drug repurposing
 
-Following the spatial domain identification module, STDrug uses a comprehensive drug ranking algorithm to repurpose drugs personalized for each patient. In this step, use R script to run the module
-
-```bash
-Rscript drug_score/Main.R \
-  --data-name '<name of dataset>' \
-  --tissue '<tissue kind>' \
-  --output '<output directory>' \
-  --public-data-path '<public data path downloaded from dropbox>' \
-  --cluster-output-path '<output directory of spatial domains>' \
-  --checkpoint-path '<checkpoint save directory>'
-```
+Following the spatial domain identification module, STDrug uses a comprehensive drug ranking algorithm to repurpose drugs personalized for each patient. In this step, use R script to run the module following the tutorial [Use STDrug to calculate drug score for multiple samples](https://remisiki.github.io/STdrug/drug-score-calculation-example).
 
 STDrug generates drug outputs structured as follows. The repurposed top drugs can be inspected from `./output/drugs_<patient>.csv`.
 
