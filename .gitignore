@@ -1,1 +1,10 @@
+*.Rproj
+.Rhistory
+.Rprofile
+.Rproj.user
+.idea/
 __pycache__
+data/
+output/
+renv/
+venv/

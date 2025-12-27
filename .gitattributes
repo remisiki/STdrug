@@ -1,1 +1,3 @@
 notebooks/**/* linguist-detectable=false
+vignettes/**/* linguist-detectable=false
+man/**/* linguist-detectable=false
