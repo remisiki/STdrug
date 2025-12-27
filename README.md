@@ -14,7 +14,7 @@ TBD
 
 ## Manual install
 
-STADS consists of a spatial domain matching module and a drug score calculation module, written in Python and R correspondingly. For a manual installation and custom package usage, please follow the directions here.
+STDrug consists of a spatial domain matching module and a drug score calculation module, written in Python and R correspondingly. For a manual installation and custom package usage, please follow the directions here.
 
 The package is tested under Python `3.12.10` and R `4.5.2`.
 
@@ -24,11 +24,20 @@ Install Python requirements using `pip`:
 pip install 'git+https://github.com/remisiki/STdrug.git'
 ```
 
-Install R environments using `devtools`:
-
+Install R environments using `devtools` and `BiocManager`:
 ```r
-install.packages("devtools")
+install.packages(c("BiocManager", "devtools"))
+BiocManager::install(c("cmapR", "limma"))
+devtools::install_github(c("immunogenomics/presto", "jinworks/CellChat"))
 devtools::install_github("remisiki/STdrug")
+```
+
+Alternatively, use `renv`:
+```r
+install.packages("renv")
+renv::init(bioconductor=T)
+# Restart R session
+renv::install("remisiki/STdrug")
 ```
 
 # Tutorial

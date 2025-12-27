@@ -18,7 +18,9 @@ Depends: R (>= 4.1.3)
 Imports: Seurat (>= 4.3.0),
          limma,
          xgboost,
-         cmapR
+         cmapR,
+         presto,
+         CellChat
 Remotes: immunogenomics/presto,
          jinworks/CellChat
 URL: https://github.com/remisiki/STdrug

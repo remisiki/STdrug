@@ -121,14 +121,22 @@ section.footnotes {
 <h2 id="docker">Docker</h2>
 <p>TBD</p>
 <h2 id="manual-install">Manual install</h2>
-<p>STADS consists of a spatial domain matching module and a drug score calculation module, written in Python and R correspondingly. For a manual installation and custom package usage, please follow the directions here.</p>
+<p>STDrug consists of a spatial domain matching module and a drug score calculation module, written in Python and R correspondingly. For a manual installation and custom package usage, please follow the directions here.</p>
 <p>The package is tested under Python <code>3.12.10</code> and R <code>4.5.2</code>.</p>
 <p>Install Python requirements using <code>pip</code>:</p>
 <pre><code class="language-bash">pip install 'git+https://github.com/remisiki/STdrug.git'
 </code></pre>
-<p>Install R environments using <code>devtools</code>:</p>
-<pre><code class="language-r">install.packages(&quot;devtools&quot;)
+<p>Install R environments using <code>devtools</code> and <code>BiocManager</code>:</p>
+<pre><code class="language-r">install.packages(c(&quot;BiocManager&quot;, &quot;devtools&quot;))
+BiocManager::install(c(&quot;cmapR&quot;, &quot;limma&quot;))
+devtools::install_github(c(&quot;immunogenomics/presto&quot;, &quot;jinworks/CellChat&quot;))
 devtools::install_github(&quot;remisiki/STdrug&quot;)
+</code></pre>
+<p>Alternatively, use <code>renv</code>:</p>
+<pre><code class="language-r">install.packages(&quot;renv&quot;)
+renv::init(bioconductor=T)
+# Restart R session
+renv::install(&quot;remisiki/STdrug&quot;)
 </code></pre>
 <h1 id="tutorial">Tutorial</h1>
 <h2 id="data-preparation">Data preparation</h2>
