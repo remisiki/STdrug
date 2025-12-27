@@ -1,0 +1,65 @@
+---
+title: "Use STDrug to calculate drug score for multiple samples"
+output:
+  html_document:
+    df_print: paged
+---
+
+In this example, we use one HCC patient data downloaded from HRA000437 to demonstrate how STDrug repurpose personalized potential drugs.
+
+First, load the preprocessed HCC Seurat object.
+```{r}
+patient <- "HCC01"
+data <- list(
+  normal = readRDS("data/HCC01N.rds"),
+  tumor = readRDS("data/HCC01T.rds")
+)
+```
+
+STDrug compares spatial data with drug perturbation database on the same tissue kind. Here, we specify liver, as HCC originates from liver tissue.
+```{r}
+tissue <- "liver"
+```
+
+Drug reference file should be downloaded from Dropbox. Specify the path to the files.
+```{r}
+drug_ref_dir <- "data/reference"
+```
+
+Set the output path and read partition results from the STDrug spatial domain identification module.
+```{r}
+output_dir <- "output"
+partition <- read.csv(file.path(output_dir, "partition.csv"), row.names = 1)
+domains <- unique(partition$cluster)
+```
+
+Update Seurat object and add meta data.
+```{r}
+data$normal <- Seurat::UpdateSeuratObject(data$normal)
+data$normal$cluster_stads <- partition[partition$batch == paste0(patient, "N"), "cluster"]
+data$tumor <- Seurat::UpdateSeuratObject(data$tumor)
+data$tumor$cluster_stads <- partition[partition$batch == paste0(patient, "T"), "cluster"]
+```
+
+Run STDrug pipeline and get the drug score rankings. Drugs with higher scores are more potential drugs.
+```{r}
+# Load drug reference
+drug_ref <- STDrug::loadDrugRef(drug_ref_dir, tissue)
+# Calculate drug score
+drug_scores <-
+  STDrug::calcDrugScore(
+    tissue = tissue,
+    tumor_samples = data$tumor,
+    normal_samples = data$normal,
+    patient = patient,
+    domains = domains,
+    drug_ref = drug_ref,
+    output_dir = output_dir
+  )
+head(drug_scores)
+```
+
+Session information
+```{r}
+sessionInfo()
+```
