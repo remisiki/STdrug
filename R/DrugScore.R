@@ -1,5 +1,3 @@
-source("/nfs/dcmb-lgarmire/yangiwen/workspace/common/Utils.R")
-
 calcDeg <- function(
   normal_samples,
   tumor_samples,
@@ -10,7 +8,7 @@ calcDeg <- function(
 ) {
   degs <- NULL
   if ((ncol(normal_samples) > min_domain_size) &&
-      (ncol(tumor_samples) > min_domain_size)) {
+    (ncol(tumor_samples) > min_domain_size)) {
     # Merge normal and tumor samples, subset by common genes
     domain_samples <- mergeSeuratList(c(normal_samples, tumor_samples))
     # DE analysis
@@ -100,7 +98,7 @@ calcCciRatio <- function(
     return(data.frame(ratio = spot_size / spot_diameter_fullres, tol = spot_size / 2))
   }))
   rownames(spatial_factors) <- batches
-  
+
   # Create cellchat object
   cellchat <- CellChat::createCellChat(
     object = data_input,
@@ -110,36 +108,36 @@ calcCciRatio <- function(
     coordinates = spatial_locs,
     spatial.factors = spatial_factors
   )
-  
+
   # Set the ligand-receptor interaction database
   cellchat@DB <- CellChat::CellChatDB.human
-  
+
   # Preprocessing the expression data for cell-cell communication analysis
   # This step is necessary even if using the whole database
   cellchat <- CellChat::subsetData(cellchat)
   # future::plan("multisession", workers = 4)
   cellchat <- CellChat::identifyOverExpressedGenes(cellchat)
   cellchat <- CellChat::identifyOverExpressedInteractions(cellchat)
-  
+
   # Compute the communication probability and infer cellular communication network
   cellchat <- CellChat::computeCommunProb(
     cellchat,
     type = "truncatedMean",
     trim = 0.1,
-    distance.use = FALSE,
+    distance.use = T,
     interaction.range = 250,
-    scale.distance = NULL,
-    contact.dependent = TRUE,
+    scale.distance = 0.01,
+    contact.dependent = T,
     contact.range = 100
   )
   cellchat <- CellChat::filterCommunication(cellchat, min.cells = 10)
-  
+
   # Infer the cell-cell communication at a signaling pathway level
   cellchat <- CellChat::computeCommunProbPathway(cellchat)
-  
+
   # Calculate the aggregated cell-cell communication network
   cellchat <- CellChat::aggregateNet(cellchat)
-  
+
   return(cellchat@net$weight)
 }
 
@@ -166,18 +164,18 @@ calcCegPval <- function(degs, drug_ref) {
   return(p_score)
 }
 
-calcGeneImportance <- function(ceg_pval, drug_ref, drug_annotation) {
+calcGeneImportance <- function(ceg_pval, perturbation, annotation) {
   train <- t(ceg_pval)
-  sig_info <- drug_ref$sig_info
-  gene_info <- drug_ref$gene_info
+  sig_info <- perturbation$sig_info
+  gene_info <- perturbation$gene_info
   drug_names <- sig_info[match(rownames(train), sig_info$sig_id), "pert_iname"]
-  labels <- as.numeric(drug_annotation[match(drug_names, drug_annotation$drug_name), "response_gpt"] == "True")
+  labels <- as.factor(annotation[match(drug_names, annotation$drug_name), "response_gpt"] == "True")
   xgb <- xgboost::xgboost(
     train,
     labels,
     nrounds = 500,
     objective = "binary:logistic",
-    verbose = 1
+    verbosity = 1
   )
   gene_importance <- data.frame(gene_id = colnames(train), score = 0)
   xgb_importance <- xgboost::xgb.importance(model = xgb)[, c("Feature", "Gain")]
@@ -225,6 +223,7 @@ calcDrugSafetyScore <- function(sider, drugs) {
   replace(scores, is.na(scores), 0)
 }
 
+#' @export
 calcDrugScore <- function(
   tissue,
   tumor_samples,
@@ -232,27 +231,27 @@ calcDrugScore <- function(
   patient,
   domains,
   drug_ref,
-  drug_annotation,
-  gdsc,
-  sider,
-  domain_key = "stads_domain",
-  checkpoint_path = NULL
+  domain_key = "cluster_stads",
+  output_dir = NULL
 ) {
+  checkpoint_dir <- file.path(output_dir, "checkpoint")
+  mkdir(checkpoint_dir)
   # Calculate cluster proportions in diseased tissue
   domain_props <- prop.table(table(tumor_samples@meta.data[[domain_key]]))
-  
+
   # Calculate CCI score
   cci_ratio_tumor <- calcCciRatio(tumor_samples, domain_key = domain_key)
   cci_ratio_normal <- calcCciRatio(normal_samples, domain_key = domain_key)
   cci_score <- exp(as.matrix(cci_ratio_tumor - cci_ratio_normal))
   cci_score <- rowSums(cci_score) - diag(cci_score)
-  if (!is.null(checkpoint_path)) {
-    write.csv(cci_ratio_tumor, file.path(checkpoint_path, paste0("cci_ratio_", patient, "T.csv")))
-    write.csv(cci_ratio_normal, file.path(checkpoint_path, paste0("cci_ratio_", patient, "N.csv")))
+  if (!is.null(output_dir)) {
+    write.csv(cci_ratio_tumor, file.path(checkpoint_dir, paste0("cci_ratio_", patient, "T.csv")))
+    write.csv(cci_ratio_normal, file.path(checkpoint_dir, paste0("cci_ratio_", patient, "N.csv")))
   }
-  
+
   # FDR
-  drugs <- unique(drug_ref$sig_info[match(colnames(drug_ref$response), drug_ref$sig_info$sig_id), "pert_iname"])
+  perturbation <- drug_ref$perturbation
+  drugs <- unique(perturbation$sig_info[match(colnames(perturbation$response), perturbation$sig_info$sig_id), "pert_iname"])
   fdr_map <- list()
   for (domain in domains) {
     message(paste0("STADS domain ", domain))
@@ -265,15 +264,15 @@ calcDrugScore <- function(
     domain_degs <- calcDeg(domain_normal_samples, domain_tumor_samples)
     # Find CEGs
     message("Find CEG")
-    ceg_pval <- calcCegPval(domain_degs, drug_ref)
+    ceg_pval <- calcCegPval(domain_degs, perturbation)
     # Calculate gene importance
     message("Calculate gene importance")
-    gene_importance <- calcGeneImportance(ceg_pval, drug_ref, drug_annotation)
+    gene_importance <- calcGeneImportance(ceg_pval, perturbation, drug_ref$annotation)
     # Calculate OS score and FDR
     message("Calculate drug fdr")
-    fdr_map[[domain]] <- calcDrugFdr(drugs, ceg_pval, gene_importance, drug_ref$sig_info)
+    fdr_map[[domain]] <- calcDrugFdr(drugs, ceg_pval, gene_importance, perturbation$sig_info)
   }
-  
+
   # Calculate patient therapeutic score
   drug_scores <- data.frame()
   for (drug in drugs) {
@@ -297,7 +296,7 @@ calcDrugScore <- function(
       drug_scores <- rbind(drug_scores, domain_score_df)
       drug_pvals <- c(drug_pvals, pval)
     }
-    
+
     drug_score_df <- data.frame(
       drug = drug,
       domain = "all",
@@ -309,19 +308,19 @@ calcDrugScore <- function(
   }
   mask <- drug_scores$domain == "all"
   drug_scores[mask, "fdr"] <- p.adjust(drug_scores[mask, "pval"], method = "BH")
-  
+
   # Save drug results with each domain score
-  if (!is.null(checkpoint_path)) {
-    write.csv(drug_scores, file.path(checkpoint_path, paste0("drug_scores_", patient, ".csv")))
+  if (!is.null(output_dir)) {
+    write.csv(drug_scores, file.path(checkpoint_dir, paste0("drug_scores_", patient, ".csv")))
   }
-  
+
   # Combine domain drugs, calculate ic50 and side effects
   drug_scores <- rankDrugs(drug_scores)
-  drug_scores$score <- drug_scores$score + calcDrugEfficacyScore(gdsc, tissue, drug_scores$drug) + calcDrugSafetyScore(sider, drug_scores$drug)
+  drug_scores$score <- drug_scores$score + calcDrugEfficacyScore(drug_ref$gdsc, tissue, drug_scores$drug) + calcDrugSafetyScore(drug_ref$sider, drug_scores$drug)
   drug_scores <- rankDrugs(drug_scores)
-  
+
   # Save final drug results
   write.csv(drug_scores, file.path(output_dir, paste0("drugs_", patient, ".csv")))
-  
+
   drug_scores
 }

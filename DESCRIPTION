@@ -1,0 +1,26 @@
+Package: STDrug
+Title: A Personalized Computational Method to Use Spatial Transcriptomics to Aid Drug-reposition Recommendation
+Version: 0.0.1
+Authors@R:
+    c(
+        person(
+            "Yiwen", "Yang",
+            email = "yangiwen@umich.edu",
+            role = c("aut", "cre"),
+            comment = c(ORCID = "0009-0002-0347-6429")
+        )
+    )
+Description: Drug repurposing is a cost-effective strategy for accelerating therapeutic discovery, yet existing single-cell RNA-seq (scRNA-seq)-based methods often overlook the spatial context critical for capturing tissue-specific drug responses. We introduce STADS (Spatial Transcriptomics to Aid Drug-reposition Strategy), a personalized computational framework that leverages spatial transcriptomics data to improve drug repurposing.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: false
+Depends: R (>= 4.1.3)
+Imports: Seurat (>= 4.3.0),
+         limma,
+         xgboost,
+         cmapR
+Remotes: immunogenomics/presto,
+         jinworks/CellChat
+URL: https://github.com/remisiki/STdrug
+BugReports: https://github.com/remisiki/STdrug/issues
+RoxygenNote: 7.3.3
